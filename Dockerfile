@@ -6,30 +6,53 @@ ARG MUSUBI_COMMIT=ee845c7659ff7a505c905388310cdf488460184e
 ENV MUSUBI_HOME=/opt/musubi \
     MUSUBI_CUDA=cu130 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH=/opt/musubi/venv/bin:${PATH} \
+    HF_HOME=/workspace/.cache/huggingface
 
+# The official RunPod PyTorch base already supplies SSH, nginx and JupyterLab.
+# Keep those native services intact and add only Musubi's extra runtime needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates ffmpeg openssh-server nginx apache2-utils rsync \
+    git curl ca-certificates ffmpeg apache2-utils rsync \
     libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/sshd /workspace
-
-RUN python -m pip install --no-cache-dir --upgrade jupyterlab
+    && mkdir -p /workspace
 
 RUN git clone https://github.com/diodiogod/musubi-tuner_simple_GUI.git "${MUSUBI_HOME}" \
     && cd "${MUSUBI_HOME}" \
     && git checkout "${MUSUBI_COMMIT}" \
     && python -m venv --system-site-packages "${MUSUBI_HOME}/venv" \
     && "${MUSUBI_HOME}/venv/bin/python" -m pip install --no-cache-dir --upgrade pip \
-    && "${MUSUBI_HOME}/venv/bin/python" -m pip install --no-cache-dir -e .
+    && "${MUSUBI_HOME}/venv/bin/python" -m pip install --no-cache-dir -e . \
+    && "${MUSUBI_HOME}/venv/bin/python" -m pip install --no-cache-dir --no-deps \
+         --index-url https://download.pytorch.org/whl/cu130 \
+         torchvision==0.24.1 \
+    && ln -sf "${MUSUBI_HOME}/venv/bin/accelerate" /usr/local/bin/accelerate \
+    && "${MUSUBI_HOME}/venv/bin/python" - <<'PY'
+import accelerate
+import torch
+import torchvision
+print("torch:", torch.__version__)
+print("torchvision:", torchvision.__version__)
+print("accelerate:", accelerate.__version__)
+PY
 
 COPY docker/patch_remote_ui.py /tmp/patch_remote_ui.py
 RUN python /tmp/patch_remote_ui.py "${MUSUBI_HOME}/modern_gui/static/app.js" \
     && rm /tmp/patch_remote_ui.py
 
-COPY docker/start.sh /usr/local/bin/h3-musubi-start
-RUN chmod +x /usr/local/bin/h3-musubi-start
+COPY docker/patch_linux_defaults.py /tmp/patch_linux_defaults.py
+RUN python /tmp/patch_linux_defaults.py "${MUSUBI_HOME}/Base_SETTINGS.json" \
+    && rm /tmp/patch_linux_defaults.py
+
+# RunPod's own /start.sh starts SSH + Jupyter correctly for its proxy, then
+# automatically executes /post_start.sh. Musubi is started there.
+COPY docker/post_start.sh /post_start.sh
+COPY docker/download_h3_models.sh /usr/local/bin/download-h3-models
+RUN chmod +x /post_start.sh /usr/local/bin/download-h3-models
 
 EXPOSE 22 8677 8888
 WORKDIR /workspace
-CMD ["/usr/local/bin/h3-musubi-start"]
+
+# IMPORTANT: do not set CMD here.
+# Inheriting the official RunPod base CMD (/start.sh) is intentional.

@@ -1,64 +1,47 @@
-# H3 Musubi RunPod
+# H3 Musubi RunPod v1.0.1
 
-RunPod container recipe for MiniMax H3 LoRA training with
-`diodiogod/musubi-tuner_simple_GUI`.
+A RunPod-friendly MiniMax H3 Musubi training image.
 
-## Pinned stack
+## What v1.0.1 fixes
 
-- Base: `runpod/pytorch:1.0.3-cu1300-torch291-ubuntu2404`
-- CUDA: 13.0
-- PyTorch: 2.9.1
-- Musubi commit: `ee845c7659ff7a505c905388310cdf488460184e`
-
-## RunPod-specific fixes
-
-The upstream GUI uses native Windows/Tk dialogs for Browse and Add Dataset.
-Those controls do not work on a headless RunPod. This image patches them so
-they ask for a path inside the Pod instead, e.g.:
-
-`/workspace/datasets/my_character`
-
-Musubi itself stays on localhost. An nginx reverse proxy with Basic Auth is
-exposed on port 8677.
-
-## Persistent folders
-
-- `/workspace/datasets`
-- `/workspace/models`
-- `/workspace/output`
-- `/workspace/cache`
-- `/workspace/logs`
-- `/workspace/projects`
-
-## Published image
-
-GitHub Actions publishes:
-
-`ghcr.io/lokitsar/h3-musubi-runpod:v1.0.0`
-
-Prefer the versioned tag in RunPod.
+- Keeps the official RunPod `/start.sh`, so SSH and JupyterLab use RunPod's native startup/proxy behavior.
+- Starts Musubi automatically on HTTP port `8677`.
+- Uses a standalone authenticated nginx instance for Musubi without modifying RunPod's nginx.
+- Makes `accelerate` discoverable by Musubi.
+- Installs the matching CUDA 13 `torchvision 0.24.1` wheel.
+- Preserves the headless browser path picker fix.
+- Replaces stale Windows defaults with `/workspace` H3 defaults.
+- Creates standard persistent folders automatically.
+- Adds `download-h3-models` for one-command H3 model setup.
 
 ## RunPod template
 
-- Template type: Pods
-- Compute: NVIDIA / GPU
-- Container image: `ghcr.io/lokitsar/h3-musubi-runpod:v1.0.0`
-- Container disk: 40 GB minimum
-- Persistent volume: 100 GB or more
-- Persistent mount path: `/workspace`
+Image: `ghcr.io/lokitsar/h3-musubi-runpod:v1.0.1`
 
-Expose:
+Recommended ports:
+- `8677/http` — Musubi
+- `8888/http` — JupyterLab
+- `22/tcp` — SSH
 
-- `8677/http` — Musubi Studio
-- `8888/http` — Jupyter Lab
-- `22/tcp` — SSH/SCP/SFTP
+Persistent mount: `/workspace`
 
 Recommended environment variables:
-
 - `MUSUBI_USER=musubi`
-- `MUSUBI_PASSWORD=<strong password>`
-- `JUPYTER_PASSWORD=<strong token/password>`
-- `PUBLIC_KEY=<SSH public key>` if RunPod does not inject it automatically
+- `MUSUBI_PASSWORD=<RunPod secret>`
+- `JUPYTER_PASSWORD=<RunPod secret>`
+- `PUBLIC_KEY=<your SSH public key>`
 
-If `MUSUBI_PASSWORD` is omitted, one is generated and stored in
-`/workspace/MUSUBI_LOGIN.txt`.
+Optional:
+- `AUTO_DOWNLOAD_H3_MODELS=1` — downloads missing H3 model files at boot. This can take time and is not recommended on metered GPU time unless you intentionally want automatic setup.
+
+## Normal workflow
+
+1. Deploy the template.
+2. Open Jupyter on port 8888 and upload the dataset into `/workspace/datasets/<name>`.
+3. Open Musubi on port 8677.
+4. Add the image folder, set caption extension `.txt`, and save the dataset TOML under `/workspace/projects`.
+5. Start H3 training.
+
+If the model bundle is missing, run this once in a terminal:
+
+`download-h3-models`
