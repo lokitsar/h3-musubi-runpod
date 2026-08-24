@@ -55,7 +55,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ env.IMAGE_NAME }}:v1.0.0
+            ${{ env.IMAGE_NAME }}:v1.0.1
             ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
