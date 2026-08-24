@@ -15,10 +15,10 @@ replacement = """async function api(path, options = {}) {
     let body = {};
     try { body = JSON.parse(options.body || \"{}\"); } catch (_) {}
     const isDirectory = body.kind === \"directory\";
-    let fallback = body.initial || (isDirectory ? \"/workspace\" : \"/workspace/projects\");
+    let fallback = body.initial || (isDirectory ? \"/workspace\" : \"/workspace/projects/dataset.toml\");\n    if (!isDirectory && /^\\/workspace\\/projects\\/?$/.test(String(fallback))) fallback = \"/workspace/projects/dataset.toml\";
     // Never present an inherited Windows path on a Linux RunPod.
     if (/^[A-Za-z]:[\\\\/]/.test(String(fallback))) {
-      fallback = isDirectory ? \"/workspace\" : \"/workspace/projects\";
+      fallback = isDirectory ? \"/workspace\" : \"/workspace/projects/dataset.toml\";
     }
     const selected = window.prompt(
       isDirectory

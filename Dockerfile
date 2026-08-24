@@ -50,6 +50,14 @@ RUN python /tmp/patch_model_bundles.py \
       "${MUSUBI_HOME}/modern_gui/static/app.js" \
     && rm /tmp/patch_model_bundles.py
 
+COPY docker/runpod_datasets.py "${MUSUBI_HOME}/modern_gui/runpod_datasets.py"
+COPY docker/patch_runpod_workflow.py /tmp/patch_runpod_workflow.py
+RUN python /tmp/patch_runpod_workflow.py \
+      "${MUSUBI_HOME}/modern_gui/server.py" \
+      "${MUSUBI_HOME}/modern_gui/static/app.js" \
+      "${MUSUBI_HOME}/modern_gui/static/index.html" \
+    && rm /tmp/patch_runpod_workflow.py
+
 COPY docker/musubi-models /usr/local/bin/musubi-models
 COPY docker/post_start.sh /post_start.sh
 RUN chmod +x /post_start.sh /usr/local/bin/musubi-models
