@@ -9,9 +9,8 @@ MUSUBI_USER="${MUSUBI_USER:-musubi}"
 
 mkdir -p \
   "${WORKSPACE}/datasets" \
-  "${WORKSPACE}/models/h3/diffusion_models" \
-  "${WORKSPACE}/models/h3/text_encoders" \
-  "${WORKSPACE}/models/h3/vae" \
+  "${WORKSPACE}/models/h3" \
+  "${WORKSPACE}/models/krea2" \
   "${WORKSPACE}/output" \
   "${WORKSPACE}/cache" \
   "${WORKSPACE}/logs" \
@@ -32,7 +31,6 @@ PY
 fi
 
 htpasswd -bc /etc/nginx/.musubi_htpasswd "${MUSUBI_USER}" "${MUSUBI_PASSWORD}" >/dev/null 2>&1
-
 {
   echo "Musubi URL: use RunPod HTTP Connect for port ${PUBLIC_PORT}"
   echo "Username: ${MUSUBI_USER}"
@@ -47,20 +45,15 @@ chmod 600 "${WORKSPACE}/MUSUBI_LOGIN.txt"
 cat > /etc/nginx/musubi-standalone.conf <<EOF2
 pid /run/musubi-nginx.pid;
 error_log ${WORKSPACE}/logs/musubi-nginx-error.log;
-
 events {}
-
 http {
     access_log ${WORKSPACE}/logs/musubi-nginx-access.log;
-
     server {
         listen 0.0.0.0:${PUBLIC_PORT};
         server_name _;
         client_max_body_size 2g;
-
-        auth_basic "H3 Musubi";
+        auth_basic "Musubi";
         auth_basic_user_file /etc/nginx/.musubi_htpasswd;
-
         location / {
             proxy_pass http://127.0.0.1:${MUSUBI_PORT};
             proxy_http_version 1.1;
@@ -85,60 +78,35 @@ nohup env PATH="${MUSUBI_HOME}/venv/bin:${PATH}" \
   --no-browser --host 127.0.0.1 --port "${MUSUBI_PORT}" \
   > "${WORKSPACE}/logs/musubi.log" 2>&1 &
 
-echo "[H3 Musubi] Waiting for GUI..."
 READY=0
 for _ in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${MUSUBI_PORT}/api/health" >/dev/null 2>&1; then
-    READY=1
-    break
-  fi
+  if curl -fsS "http://127.0.0.1:${MUSUBI_PORT}/api/health" >/dev/null 2>&1; then READY=1; break; fi
   sleep 1
 done
-
 if [[ "${READY}" != "1" ]]; then
-  echo "[H3 Musubi] GUI failed to become healthy."
   tail -n 100 "${WORKSPACE}/logs/musubi.log" || true
   exit 1
 fi
-
-if ! curl -fsS -u "${MUSUBI_USER}:${MUSUBI_PASSWORD}" \
-  "http://127.0.0.1:${PUBLIC_PORT}/api/health" >/dev/null 2>&1; then
-  echo "[H3 Musubi] Authenticated port ${PUBLIC_PORT} failed its health check."
+if ! curl -fsS -u "${MUSUBI_USER}:${MUSUBI_PASSWORD}" "http://127.0.0.1:${PUBLIC_PORT}/api/health" >/dev/null 2>&1; then
   tail -n 100 "${WORKSPACE}/logs/musubi-nginx-error.log" || true
   exit 1
 fi
 
-echo "[H3 Musubi] Ready on RunPod HTTP port ${PUBLIC_PORT}."
-echo "[H3 Musubi] Jupyter/SSH are handled by the official RunPod base image."
+echo "[Musubi] Ready on RunPod HTTP port ${PUBLIC_PORT}."
+echo "[Musubi] Jupyter/SSH are handled by RunPod's native startup."
 
-DIT="${WORKSPACE}/models/h3/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors"
-TEXT="${WORKSPACE}/models/h3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
-VAE="${WORKSPACE}/models/h3/vae/minimax_h3_video_vae_fp16.safetensors"
-
-if [[ ! -f "${DIT}" || ! -f "${TEXT}" || ! -f "${VAE}" ]]; then
-  echo "[H3 Musubi] H3 model bundle is not complete under ${WORKSPACE}/models/h3."
-  echo "[H3 Musubi] Run 'download-h3-models' once, or restore models to /workspace."
-  if [[ "${AUTO_DOWNLOAD_H3_MODELS:-0}" == "1" ]]; then
-    echo "[H3 Musubi] AUTO_DOWNLOAD_H3_MODELS=1, downloading missing files now..."
-    /usr/local/bin/download-h3-models
-  fi
-fi
-
-cat > "${WORKSPACE}/H3_MUSUBI_README.txt" <<'EOF3'
-H3 Musubi RunPod quick paths
-
-Datasets: /workspace/datasets
+cat > "${WORKSPACE}/MUSUBI_RUNPOD_README.txt" <<'EOF3'
+Musubi RunPod quick paths
+Datasets:      /workspace/datasets
 Dataset TOMLs: /workspace/projects
-H3 models: /workspace/models/h3
-LoRA outputs: /workspace/output
-Logs: /workspace/logs
+Models:        /workspace/models
+LoRA outputs:  /workspace/output
+Logs:          /workspace/logs
 
-Normal workflow:
-1. Open Jupyter (RunPod port 8888) and upload your dataset.
-2. Open Musubi (RunPod port 8677).
-3. Add /workspace/datasets/<name>, set caption extension .txt, save TOML under /workspace/projects.
-4. New training -> MiniMax H3 -> compact still images -> train.
-
-If H3 models are missing, run:
-download-h3-models
+Model behavior:
+- Select MiniMax H3: Musubi offers to download missing H3 files.
+- Select Krea 2: Musubi offers to download missing Krea2 training files.
+- Nothing large downloads at pod startup.
+- Krea-2 Raw requires HF_TOKEN and Hugging Face access to krea/Krea-2-Raw.
+- Krea-2 Turbo is optional and is not downloaded automatically.
 EOF3

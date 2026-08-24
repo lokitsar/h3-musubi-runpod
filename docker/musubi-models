@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec /opt/musubi/venv/bin/python -m modern_gui.runpod_models "$@"

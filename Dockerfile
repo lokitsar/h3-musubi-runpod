@@ -10,8 +10,6 @@ ENV MUSUBI_HOME=/opt/musubi \
     PATH=/opt/musubi/venv/bin:${PATH} \
     HF_HOME=/workspace/.cache/huggingface
 
-# The official RunPod PyTorch base already supplies SSH, nginx and JupyterLab.
-# Keep those native services intact and add only Musubi's extra runtime needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates ffmpeg apache2-utils rsync \
     libgl1 libglib2.0-0 \
@@ -45,14 +43,18 @@ COPY docker/patch_linux_defaults.py /tmp/patch_linux_defaults.py
 RUN python /tmp/patch_linux_defaults.py "${MUSUBI_HOME}/Base_SETTINGS.json" \
     && rm /tmp/patch_linux_defaults.py
 
-# RunPod's own /start.sh starts SSH + Jupyter correctly for its proxy, then
-# automatically executes /post_start.sh. Musubi is started there.
+COPY docker/runpod_models.py "${MUSUBI_HOME}/modern_gui/runpod_models.py"
+COPY docker/patch_model_bundles.py /tmp/patch_model_bundles.py
+RUN python /tmp/patch_model_bundles.py \
+      "${MUSUBI_HOME}/modern_gui/server.py" \
+      "${MUSUBI_HOME}/modern_gui/static/app.js" \
+    && rm /tmp/patch_model_bundles.py
+
+COPY docker/musubi-models /usr/local/bin/musubi-models
 COPY docker/post_start.sh /post_start.sh
-COPY docker/download_h3_models.sh /usr/local/bin/download-h3-models
-RUN chmod +x /post_start.sh /usr/local/bin/download-h3-models
+RUN chmod +x /post_start.sh /usr/local/bin/musubi-models
 
 EXPOSE 22 8677 8888
 WORKDIR /workspace
 
-# IMPORTANT: do not set CMD here.
-# Inheriting the official RunPod base CMD (/start.sh) is intentional.
+# Intentionally inherit RunPod's native /start.sh CMD.

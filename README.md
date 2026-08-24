@@ -1,47 +1,48 @@
-# H3 Musubi RunPod v1.0.1
+# Musubi RunPod v1.0.2
 
-A RunPod-friendly MiniMax H3 Musubi training image.
+One RunPod template for MiniMax H3 and Krea 2 training.
 
-## What v1.0.1 fixes
-
-- Keeps the official RunPod `/start.sh`, so SSH and JupyterLab use RunPod's native startup/proxy behavior.
-- Starts Musubi automatically on HTTP port `8677`.
-- Uses a standalone authenticated nginx instance for Musubi without modifying RunPod's nginx.
-- Makes `accelerate` discoverable by Musubi.
-- Installs the matching CUDA 13 `torchvision 0.24.1` wheel.
-- Preserves the headless browser path picker fix.
-- Replaces stale Windows defaults with `/workspace` H3 defaults.
-- Creates standard persistent folders automatically.
-- Adds `download-h3-models` for one-command H3 model setup.
-
-## RunPod template
-
-Image: `ghcr.io/lokitsar/h3-musubi-runpod:v1.0.1`
-
-Recommended ports:
-- `8677/http` — Musubi
-- `8888/http` — JupyterLab
-- `22/tcp` — SSH
-
-Persistent mount: `/workspace`
-
-Recommended environment variables:
-- `MUSUBI_USER=musubi`
-- `MUSUBI_PASSWORD=<RunPod secret>`
-- `JUPYTER_PASSWORD=<RunPod secret>`
-- `PUBLIC_KEY=<your SSH public key>`
-
-Optional:
-- `AUTO_DOWNLOAD_H3_MODELS=1` — downloads missing H3 model files at boot. This can take time and is not recommended on metered GPU time unless you intentionally want automatic setup.
-
-## Normal workflow
-
+## Normal flow
 1. Deploy the template.
-2. Open Jupyter on port 8888 and upload the dataset into `/workspace/datasets/<name>`.
-3. Open Musubi on port 8677.
-4. Add the image folder, set caption extension `.txt`, and save the dataset TOML under `/workspace/projects`.
-5. Start H3 training.
+2. Open Jupyter on 8888 and upload a dataset to `/workspace/datasets`.
+3. Open Musubi on 8677.
+4. Select MiniMax H3 or Krea 2.
+5. Musubi checks `/workspace/models` and offers to download only the selected trainer's missing model bundle.
+6. Configure dataset and train.
 
-If the model bundle is missing, run this once in a terminal:
+Nothing large downloads just because the pod starts.
 
-`download-h3-models`
+## H3 bundle
+About 42 GB from `Comfy-Org/MiniMax-H3`:
+- compact pruned INT8 ConvRot DiT
+- compact Qwen3-VL-32B text encoder
+- H3 FP16 video VAE
+
+## Krea 2 bundle
+About 34 GB:
+- `krea/Krea-2-Raw/raw.safetensors`
+- `Comfy-Org/Qwen3-VL/text_encoders/qwen3vl_4b_bf16.safetensors`
+- `Comfy-Org/Qwen-Image_ComfyUI/split_files/vae/qwen_image_vae.safetensors`
+
+Krea-2 Raw is gated. Add `HF_TOKEN` as a RunPod secret and ensure that Hugging Face account has accepted access to `krea/Krea-2-Raw`.
+
+Krea-2 Turbo is optional and intentionally not auto-downloaded. Musubi trains on RAW.
+
+## Template
+Image after build: `ghcr.io/lokitsar/h3-musubi-runpod:v1.0.2`
+
+Ports:
+- 8677 HTTP Musubi
+- 8888 HTTP Jupyter
+- 22 TCP SSH
+
+Persistent storage: 150 GB at `/workspace`
+
+Environment:
+- `MUSUBI_USER=musubi`
+- `MUSUBI_PASSWORD=<secret>`
+- `JUPYTER_PASSWORD=<secret>`
+- `PUBLIC_KEY=<your SSH public key>`
+- `HF_TOKEN=<secret>` only required for Krea 2
+
+Leave Start command blank.
